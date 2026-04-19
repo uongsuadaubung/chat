@@ -1,0 +1,61 @@
+{
+  "name": "chat",
+  "private": true,
+  "version": "0.3.0",
+  "type": "module",
+  "packageManager": "bun@1.3.12",
+  "scripts": {
+    "preinstall": "npx only-allow bun",
+    "dev": "bunx --bun vite",
+    "build": "bunx --bun vite build",
+    "preview": "bunx --bun vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
+    "prepare": "husky",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "validate": "bun run lint && bun run check && bun run test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@sveltejs/vite-plugin-svelte": "^7.0.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/svelte": "^5.3.1",
+    "@tsconfig/svelte": "^5.0.8",
+    "@types/node": "^24.12.2",
+    "eslint": "^10.2.0",
+    "eslint-plugin-svelte": "^3.17.0",
+    "fake-indexeddb": "^6.2.5",
+    "globals": "^17.5.0",
+    "husky": "^9.1.7",
+    "jsdom": "^29.0.2",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.8.2",
+    "prettier-plugin-svelte": "^3.5.1",
+    "sass": "^1.99.0",
+    "svelte": "^5.55.3",
+    "svelte-check": "^4.4.6",
+    "svelte-eslint-parser": "^1.6.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.58.2",
+    "vite": "^8.0.8",
+    "vitest": "^4.1.4"
+  },
+  "dependencies": {
+    "dexie": "^4.4.2",
+    "fflate": "^0.8.2",
+    "firebase": "^12.12.0",
+    "zod": "^4.3.6"
+  },
+  "lint-staged": {
+    "*.{js,ts,svelte}": [
+      "eslint --fix",
+      "prettier --write",
+      "bun scripts/check-file-naming.mjs"
+    ],
+    "*.{svelte,css}": "bun scripts/check-css-comments.mjs",
+    "*.{svelte,ts,css,scss}": "bun scripts/check-ui-rules.mjs",
+    "*.{css,scss,json,md,html}": "prettier --write"
+  }
+}

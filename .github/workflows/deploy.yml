@@ -1,0 +1,120 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  deployments: write
+  actions: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Dependencies
+        run: bun install --frozen-lockfile
+
+      # - name: Get Current Version
+      #   shell: bash
+      #   run: |
+      #     # Đọc version hiện tại để dùng cho commit message lúc deploy (không bump)
+      #     VERSION=$(bun -e "console.log(require('./package.json').version)")
+      #     echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      # - name: Auto Bump Version
+      #   shell: bash
+      #   run: |
+      #     # Khi push lên main, tự động tăng nhánh phụ version (patch: 1.0.0 -> 1.0.1)
+      #     bun version patch --no-git-tag-version
+      #     VERSION=$(bun -e "console.log(require('./package.json').version)")
+      #     echo "Bumping to version $VERSION"
+      #     bun scripts/bump-version.mjs $VERSION
+      #
+      #     # Lưu lại biến chạy cho các bước sau
+      #     echo "VERSION=$VERSION" >> $GITHUB_ENV
+      #
+      # - name: Commit & Push changes back to repo
+      #   shell: bash
+      #   run: |
+      #     git config --global user.name 'github-actions[bot]'
+      #     git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+      #     git add package.json bun.lock
+      #     git commit -m "chore: bump version to v${{ env.VERSION }} [skip ci]" || echo "No changes to commit"
+      #     git push origin HEAD:${{ github.event.repository.default_branch }}
+
+      - name: Build Application
+        # Nạp Firebase config để Vite đóng gói tĩnh (Cần cấu hình bên trong Github Repo Secrets)
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_DATABASE_URL: ${{ secrets.VITE_FIREBASE_DATABASE_URL }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          DEPLOY_TARGET: 'gh-pages'
+        run: bun run build
+
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist # Thư mục sinh ra sau khi Vite build
+          publish_branch: gh-pages # Mặc định đẩy vào nhánh gh-pages
+          force_orphan: true
+          user_name: github-actions[bot]
+          user_email: github-actions[bot]@users.noreply.github.com
+          commit_message: '🚀 Deploy - ${{ github.sha }}'
+
+      - name: Cleanup old GitHub Deployments
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Bắt đầu dọn dẹp các lịch sử deploy rác..."
+          # Lấy danh sách ID nhưng lờ đi (skip) cái vị trí số 0 (cái mới nhất)
+          OLD_IDS=$(gh api --paginate "/repos/${{ github.repository }}/deployments" --jq ".[1:][].id")
+
+          if [ -z "$OLD_IDS" ]; then
+            echo "Không có rác cũ nào cần dọn!"
+          else
+            for id in $OLD_IDS; do
+              echo "Đang xóa deployment cũ (ID: $id) khỏi server..."
+              gh api -X DELETE "/repos/${{ github.repository }}/deployments/$id" || true
+            done
+            echo "✅ Dọn dẹp hoàn tất, chỉ giữ lại bản Deploy mới nhất!"
+          fi
+
+      - name: Cleanup old GitHub Actions Workflow Runs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Bắt đầu dọn dẹp các lịch sử Github Actions đã chạy xong..."
+          # Chỉ lấy danh sách các Workflow TRONG QUÁ KHỨ (đã chạy xong status=completed)
+          # Tránh việc xóa nhầm chính cái đang chạy dở chưa xong!
+          COMPLETED_RUNS=$(gh api --paginate "/repos/${{ github.repository }}/actions/runs?status=completed" --jq ".workflow_runs[].id")
+
+          if [ -z "$COMPLETED_RUNS" ]; then
+            echo "Không có lịch sử Actions rác nào!"
+          else
+            for id in $COMPLETED_RUNS; do
+              echo "Đang xóa lịch sử Workflow Run cũ (ID: $id)..."
+              gh api -X DELETE "/repos/${{ github.repository }}/actions/runs/$id" || true
+            done
+            echo "✅ Dọn dẹp Actions thành công, rỗng tuếch!"
+          fi
