@@ -1,0 +1,1 @@
+(function(){self.onmessage=e=>{let{type:t,payload:n}=e.data;if(t===`READ_CHUNK`){let{file:e,index:t,chunkSize:r,reqId:i}=n,a=e.slice(t*r,(t+1)*r);try{let e=new FileReaderSync().readAsArrayBuffer(a);self.postMessage({type:`CHUNK_READ`,payload:{reqId:i,data:e}},[e])}catch(e){self.postMessage({type:`ERROR`,payload:{reqId:i,error:e instanceof Error?e.message:String(e)}})}}}})();
